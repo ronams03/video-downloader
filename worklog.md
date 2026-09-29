@@ -214,3 +214,32 @@ Work Log:
 
 Stage Summary:
 - PureDownload now has its own favicon + header logo; no external CDN logo references remain.
+
+---
+Task ID: fix-4
+Agent: Z.ai Code (main)
+Task: Fix Vercel deployment failing with `TurbopackInternalError: Dependency tracking is disabled so invalidation is not allowed` during `bun run build`.
+
+Work Log:
+- Researched the exact error via web search: it is a known Next.js bug — "Turbopack build fails if multiple app/ icons have same name" (confirmed by the Next.js team, Oct 29 2025). `next dev` works fine; only the production Turbopack build panics.
+- Identified the trigger in this repo: `src/app/icon.svg` AND `src/app/icon.png` both resolve to the same `/icon` metadata route (same name, different extension) — exactly the reported conflict.
+- Removed `src/app/icon.png` (32px legacy fallback). Nothing in src referenced it (grep-verified). Modern browsers use `icon.svg`; Safari/iOS use `apple-icon.png` (different name, no conflict).
+- Decided NOT to bump the Next.js version (installed 16.1.3): deleting the duplicate file is deterministic and cannot be build-verified locally (no builds allowed in sandbox), while the same-name removal removes the panicking code path entirely.
+
+Stage Summary:
+- Root cause of the Vercel build failure: duplicate app-router icon name (icon.svg + icon.png). Fixed by removing icon.png. Vercel's `bun run build` should now pass; dev behavior unchanged.
+
+---
+Task ID: ui-4
+Agent: Z.ai Code (main)
+Task: Redesign the app icon / logo / favicon ("change the icon logo and favicon").
+
+Work Log:
+- Designed a new brand mark: emerald→teal 3-stop gradient rounded tile (#34d399 → #10b981 → #0f766e) with a bold white "play" triangle rotated downward (reads as both video and download) above a rounded download bar. Bolder than the old thin-stroke arrow, stays legible at 16px.
+- Rewrote `src/app/icon.svg` with the new design.
+- Regenerated `src/app/apple-icon.png` (180x180, full-bleed rx=0 for iOS masking) via a one-off sharp script (script deleted after use).
+- Updated the inline `BrandMark` SVG in `src/components/downloader/app-header.tsx` to mirror the new mark exactly (kept unique gradient id `pd-bg`).
+- Verified via agent-browser: `<link rel="icon"> → /icon.svg (image/svg+xml)` and `<link rel="apple-touch-icon"> → /apple-icon.png (180x180)` emitted; /icon.svg + /apple-icon.png return 200, /icon.png 404 (gone); header mark renders on desktop (1280px) and mobile (390px); Files tab interaction works; zero page errors / console errors; lint clean.
+
+Stage Summary:
+- New PureDownload logo shipped across favicon (SVG), apple-touch-icon (PNG), and header brand mark — and the redesign doubles as the fix-4 build fix because the conflicting icon.png no longer exists.

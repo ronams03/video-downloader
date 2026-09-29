@@ -16,15 +16,14 @@ function BrandMark({ className }: { className?: string }) {
     <svg viewBox="0 0 64 64" aria-hidden="true" className={className}>
       <defs>
         <linearGradient id="pd-bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#10b981" />
-          <stop offset="1" stopColor="#0d9488" />
+          <stop offset="0" stopColor="#34d399" />
+          <stop offset="0.5" stopColor="#10b981" />
+          <stop offset="1" stopColor="#0f766e" />
         </linearGradient>
       </defs>
       <rect width="64" height="64" rx="14" fill="url(#pd-bg)" />
-      <path d="M30 13v20" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" />
-      <path d="M20 26l10 10 10-10" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M17 50h26" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" />
-      <path d="M49 8l1.8 5.2L56 15l-5.2 1.8L49 22l-1.8-5.2L42 15l5.2-1.8Z" fill="#fff" opacity="0.92" />
+      <path d="M19 16h26L32 38Z" fill="#fff" stroke="#fff" strokeWidth="7" strokeLinejoin="round" />
+      <rect x="16" y="46" width="32" height="6" rx="3" fill="#fff" />
     </svg>
   );
 }
