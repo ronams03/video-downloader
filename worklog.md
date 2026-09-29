@@ -243,3 +243,16 @@ Work Log:
 
 Stage Summary:
 - New PureDownload logo shipped across favicon (SVG), apple-touch-icon (PNG), and header brand mark — and the redesign doubles as the fix-4 build fix because the conflicting icon.png no longer exists.
+
+---
+Task ID: fix-5
+Agent: Z.ai Code (main)
+Task: Resolve hydration-mismatch console errors caused by `bis_skin_checked="1"` attributes appearing on every <div>.
+
+Work Log:
+- Diagnosed the error the user pasted: the only diff lines were `bis_skin_checked="1"` — the signature attribute injected by the Bitdefender browser extension (Online Threat Protection) into every element before React hydrates. Confirmed it is extension noise, not an app bug (React's own error text lists browser extensions as a cause; attribute-only mismatch, app works fine; dev-only console noise — production doesn't log attribute mismatches).
+- Added a pre-hydration guard in `src/app/layout.tsx`: inline script (first child of <body>) that strips attributes matching `bis_*` / `__processed_*` before hydration, plus a MutationObserver (attributes + childList on documentElement) that keeps stripping late injections. Includes a per-element cleanup cap (WeakMap, max 5) to prevent any observer ping-pong with the extension, and never touches real app attributes.
+- Verified via agent-browser: manually injected `bis_skin_checked` + `__processed_id` on <main> were auto-removed (~300ms) while app attributes stayed intact; zero page errors; console clean; page fully interactive; lint clean.
+
+Stage Summary:
+- Hydration console noise from extension-injected attributes (bis_skin_checked / __processed_*) is now neutralized at the app level for all visitors; root cause remains the user's Bitdefender extension (harmless, can be disabled per-site or verified via incognito).
