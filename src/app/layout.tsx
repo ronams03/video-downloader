@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,10 +70,35 @@ const EXTENSION_ATTR_GUARD = `
 `;
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "PureDownload — Video Downloader, Zero Added Watermarks",
-  description:
-    "Fast, privacy-focused video downloader. Paste a link, pick a quality, and save videos or MP3s locally. We never add a watermark to your downloaded files.",
+  description: SITE_DESCRIPTION,
   keywords: ["video downloader", "no watermark", "mp3", "download manager", "offline"],
+  applicationName: SITE_NAME,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: "PureDownload — Video Downloader, Zero Added Watermarks",
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "PureDownload — Video Downloader, Zero Added Watermarks",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PureDownload — Video Downloader, Zero Added Watermarks",
+    description: SITE_DESCRIPTION,
+    images: ["/og-image.png"],
+  },
   // Google Search Console ownership verification (meta-tag method).
   // The HTML-file method lives at /google9b88080ad8e24059.html (public/).
   verification: {

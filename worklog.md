@@ -270,3 +270,19 @@ Work Log:
 
 Stage Summary:
 - Both GSC verification methods (HTML file + meta tag) are wired into the app. User must redeploy to Vercel, then click "Verify" in Google Search Console.
+
+---
+Task ID: dom-1
+Agent: Z.ai Code (main)
+Task: Configure the app for the production domain https://pure-downloader.vercel.app (SEO/metadata layer).
+
+Work Log:
+- Created `src/lib/site.ts` with SITE_URL (env-overridable via NEXT_PUBLIC_SITE_URL), SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION.
+- layout.tsx metadata: added `metadataBase` (kills Next.js metadataBase warning; makes all relative metadata resolve to absolute URLs), canonical `/`, `applicationName`, full OpenGraph (url/site_name/title/description/image) and Twitter `summary_large_image` card.
+- Generated `public/og-image.png` (1200x630) via a one-off sharp script: dark emerald gradient, brand tile mark, "PureDownload" wordmark, tagline + accent line (script deleted after use).
+- Added `src/app/sitemap.ts` → serves /sitemap.xml with the production URL.
+- Rewrote `public/robots.txt`: allow all + `Sitemap: https://pure-downloader.vercel.app/sitemap.xml`.
+- Verified: /sitemap.xml 200 XML with correct <loc>; /robots.txt updated; /og-image.png 200 image/png; canonical + og:* + twitter:* tags all resolve to absolute https://pure-downloader.vercel.app URLs; lint clean; page renders with zero errors.
+
+Stage Summary:
+- Domain-aware SEO layer complete: canonical URLs, social share cards, sitemap + robots all point at pure-downloader.vercel.app. GSC verification file/meta are domain-agnostic and already in place. User: redeploy → GSC "Verify" → submit https://pure-downloader.vercel.app/sitemap.xml.
