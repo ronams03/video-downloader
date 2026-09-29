@@ -73,6 +73,11 @@ export const metadata: Metadata = {
   description:
     "Fast, privacy-focused video downloader. Paste a link, pick a quality, and save videos or MP3s locally. We never add a watermark to your downloaded files.",
   keywords: ["video downloader", "no watermark", "mp3", "download manager", "offline"],
+  // Google Search Console ownership verification (meta-tag method).
+  // The HTML-file method lives at /google9b88080ad8e24059.html (public/).
+  verification: {
+    google: "google9b88080ad8e24059",
+  },
 };
 
 export default function RootLayout({

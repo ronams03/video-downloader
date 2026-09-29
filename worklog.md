@@ -256,3 +256,17 @@ Work Log:
 
 Stage Summary:
 - Hydration console noise from extension-injected attributes (bis_skin_checked / __processed_*) is now neutralized at the app level for all visitors; root cause remains the user's Bitdefender extension (harmless, can be disabled per-site or verified via incognito).
+
+---
+Task ID: gsc-1
+Agent: Z.ai Code (main)
+Task: Add Google Search Console ownership verification (user uploaded google9b88080ad8e24059.html).
+
+Work Log:
+- The uploaded file never reached the server (upload/ dir empty), but GSC HTML-file verification is canonical: the token lives in the filename, so recreated the exact file Google generates.
+- Created `public/google9b88080ad8e24059.html` containing `google-site-verification: google9b88080ad8e24059.html` (served at the site root, works locally and on Vercel — public/ ships automatically).
+- Added the meta-tag method as a second path in `src/app/layout.tsx` metadata: `verification: { google: "google9b88080ad8e24059" }`.
+- Verified: GET /google9b88080ad8e24059.html → 200 text/html with exact content; `<meta name="google-site-verification" content="google9b88080ad8e24059"/>` present in served HTML; lint clean.
+
+Stage Summary:
+- Both GSC verification methods (HTML file + meta tag) are wired into the app. User must redeploy to Vercel, then click "Verify" in Google Search Console.
