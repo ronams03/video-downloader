@@ -9,6 +9,7 @@ import {
   Inbox,
   LayoutGrid,
   Link2,
+  Loader2,
   MoreVertical,
   Music,
   Pencil,
@@ -84,6 +85,39 @@ function gradientStyle(hue: number): React.CSSProperties {
   };
 }
 
+/**
+ * Save a library file to the user's device.
+ *
+ * We fetch the bytes and trigger a programmatic blob download instead of relying
+ * on a plain <a download> link — anchor clicks inside dropdown menus (and inside
+ * sandboxed preview iframes) are frequently swallowed, which made "Save to
+ * device" silently do nothing. A new-tab fallback covers the strictest sandboxes.
+ */
+async function downloadFileToDisk(file: FileDTO): Promise<void> {
+  try {
+    const res = await fetch(`${file.streamUrl}?dl=1`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name || `download.${file.format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    toast.success("Saved to your device", {
+      description: `${file.name} — check your browser's downloads.`,
+    });
+  } catch {
+    // Fallback: let the browser handle the attachment response directly.
+    window.open(`${file.streamUrl}?dl=1`, "_blank", "noopener,noreferrer");
+    toast.info("Opened the file in a new tab", {
+      description: "If the download didn't start, allow downloads/pop-ups for this site.",
+    });
+  }
+}
+
 export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
   const [files, setFiles] = useState<FileDTO[]>([]);
   const [folders, setFolders] = useState<FolderDTO[]>([]);
@@ -104,6 +138,16 @@ export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
   const [renaming, setRenaming] = useState(false);
 
   const [playing, setPlaying] = useState<FileDTO | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const handleSave = useCallback(async (file: FileDTO) => {
+    setSavingId(file.id);
+    try {
+      await downloadFileToDisk(file);
+    } finally {
+      setSavingId((current) => (current === file.id ? null : current));
+    }
+  }, []);
 
   const [fileToDelete, setFileToDelete] = useState<FileDTO | null>(null);
   const [deletingFile, setDeletingFile] = useState(false);
@@ -444,6 +488,8 @@ export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
                   onMove={(target) => void moveToFolder(file, target)}
                   onCopyLink={() => copySourceLink(file)}
                   onDelete={() => setFileToDelete(file)}
+                  onSave={() => void handleSave(file)}
+                  saving={savingId === file.id}
                 />
               ))}
             </div>
@@ -611,6 +657,12 @@ export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
                   <audio key={playing.id} src={playing.streamUrl} controls autoPlay className="w-full" />
                 </div>
               )}
+              <div className="flex justify-center">
+                <Button variant="outline" onClick={() => void handleSave(playing)}>
+                  <Download className="size-4" aria-hidden="true" />
+                  Save to device
+                </Button>
+              </div>
               <DialogDescription className="text-center text-xs text-muted-foreground">
                 Playing your local copy — no added watermarks, ever.
               </DialogDescription>
@@ -632,6 +684,8 @@ function FileCard({
   onMove,
   onCopyLink,
   onDelete,
+  onSave,
+  saving,
 }: {
   file: FileDTO;
   folders: FolderDTO[];
@@ -642,6 +696,8 @@ function FileCard({
   onMove: (target: string) => void;
   onCopyLink: () => void;
   onDelete: () => void;
+  onSave: () => void;
+  saving: boolean;
 }) {
   return (
     <Card className="rounded-xl border-border p-4 transition-colors hover:bg-accent/50">
@@ -682,61 +738,75 @@ function FileCard({
             {formatBytes(file.sizeBytes)} · {file.quality} · {folderLabel} · {timeAgo(file.createdAt)}
           </p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="File actions"
-              className="size-11 shrink-0 text-muted-foreground sm:size-9"
-            >
-              <MoreVertical className="size-4" aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem onSelect={onPlay}>
-              <Play aria-hidden="true" />
-              Play
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onRename}>
-              <Pencil aria-hidden="true" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Folder aria-hidden="true" />
-                Move to folder
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="max-h-64 overflow-y-auto">
-                <DropdownMenuRadioGroup value={file.folderId ?? "root"} onValueChange={onMove}>
-                  <DropdownMenuRadioItem value="root">Unsorted</DropdownMenuRadioItem>
-                  {folders.map((folder) => (
-                    <DropdownMenuRadioItem key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onCopyLink}>
-              <Link2 aria-hidden="true" />
-              Copy source link
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <a href={`${file.streamUrl}?dl=1`} download={file.name}>
+        <div className="flex shrink-0 items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onSave}
+            disabled={saving}
+            aria-label={`Save ${file.name} to device`}
+            className="size-11 text-muted-foreground hover:text-foreground sm:size-9"
+          >
+            {saving ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Download className="size-4" aria-hidden="true" />
+            )}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="File actions"
+                className="size-11 text-muted-foreground sm:size-9"
+              >
+                <MoreVertical className="size-4" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onSelect={onPlay}>
+                <Play aria-hidden="true" />
+                Play
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onRename}>
+                <Pencil aria-hidden="true" />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Folder aria-hidden="true" />
+                  Move to folder
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="max-h-64 overflow-y-auto">
+                  <DropdownMenuRadioGroup value={file.folderId ?? "root"} onValueChange={onMove}>
+                    <DropdownMenuRadioItem value="root">Unsorted</DropdownMenuRadioItem>
+                    {folders.map((folder) => (
+                      <DropdownMenuRadioItem key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onCopyLink}>
+                <Link2 aria-hidden="true" />
+                Copy source link
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onSave}>
                 <Download aria-hidden="true" />
                 Save to device
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-              <Trash2 aria-hidden="true" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                <Trash2 aria-hidden="true" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </Card>
   );

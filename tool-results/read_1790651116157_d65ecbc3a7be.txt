@@ -1,0 +1,744 @@
+     1→"use client";
+     2→
+     3→import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     4→import { toast } from "sonner";
+     5→import {
+     6→  Download,
+     7→  Folder,
+     8→  FolderOpen,
+     9→  Inbox,
+    10→  LayoutGrid,
+    11→  Link2,
+    12→  MoreVertical,
+    13→  Music,
+    14→  Pencil,
+    15→  Play,
+    16→  Plus,
+    17→  Search,
+    18→  Star,
+    19→  Trash2,
+    20→  Film,
+    21→  X,
+    22→  type LucideIcon,
+    23→} from "lucide-react";
+    24→
+    25→import {
+    26→  AlertDialog,
+    27→  AlertDialogAction,
+    28→  AlertDialogCancel,
+    29→  AlertDialogContent,
+    30→  AlertDialogDescription,
+    31→  AlertDialogFooter,
+    32→  AlertDialogHeader,
+    33→  AlertDialogTitle,
+    34→} from "@/components/ui/alert-dialog";
+    35→import { Button } from "@/components/ui/button";
+    36→import { Card } from "@/components/ui/card";
+    37→import {
+    38→  Dialog,
+    39→  DialogContent,
+    40→  DialogDescription,
+    41→  DialogFooter,
+    42→  DialogHeader,
+    43→  DialogTitle,
+    44→} from "@/components/ui/dialog";
+    45→import {
+    46→  DropdownMenu,
+    47→  DropdownMenuContent,
+    48→  DropdownMenuItem,
+    49→  DropdownMenuRadioGroup,
+    50→  DropdownMenuRadioItem,
+    51→  DropdownMenuSeparator,
+    52→  DropdownMenuSub,
+    53→  DropdownMenuSubContent,
+    54→  DropdownMenuSubTrigger,
+    55→  DropdownMenuTrigger,
+    56→} from "@/components/ui/dropdown-menu";
+    57→import { Input } from "@/components/ui/input";
+    58→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    59→import { Skeleton } from "@/components/ui/skeleton";
+    60→import { formatBytes, formatDuration, timeAgo } from "@/lib/format";
+    61→import type { FileDTO, FolderDTO } from "@/lib/types";
+    62→import { cn } from "@/lib/utils";
+    63→
+    64→async function asJson<T>(res: Response): Promise<T> {
+    65→  const data = await res.json().catch(() => ({}));
+    66→  if (!res.ok) throw new Error((data as { message?: string }).message ?? "Something went wrong");
+    67→  return data as T;
+    68→}
+    69→
+    70→type CategoryKey = "all" | "videos" | "audio" | "favorites";
+    71→type SortKey = "name" | "date" | "size";
+    72→type FolderFilter = "all" | "root" | (string & {});
+    73→
+    74→const CATEGORIES: { key: CategoryKey; label: string; icon: LucideIcon }[] = [
+    75→  { key: "all", label: "All files", icon: LayoutGrid },
+    76→  { key: "videos", label: "Videos", icon: Film },
+    77→  { key: "audio", label: "Audio", icon: Music },
+    78→  { key: "favorites", label: "Favorites", icon: Star },
+    79→];
+    80→
+    81→function gradientStyle(hue: number): React.CSSProperties {
+    82→  return {
+    83→    background: `linear-gradient(135deg, hsl(${hue} 70% 45%), hsl(${(hue + 40) % 360} 70% 30%))`,
+    84→  };
+    85→}
+    86→
+    87→export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
+    88→  const [files, setFiles] = useState<FileDTO[]>([]);
+    89→  const [folders, setFolders] = useState<FolderDTO[]>([]);
+    90→  const [loading, setLoading] = useState(true);
+    91→
+    92→  const [search, setSearch] = useState("");
+    93→  const [debouncedSearch, setDebouncedSearch] = useState("");
+    94→  const [category, setCategory] = useState<CategoryKey>("all");
+    95→  const [folderId, setFolderId] = useState<FolderFilter>("all");
+    96→  const [sort, setSort] = useState<SortKey>("date");
+    97→
+    98→  const [newFolderOpen, setNewFolderOpen] = useState(false);
+    99→  const [newFolderName, setNewFolderName] = useState("");
+   100→  const [creatingFolder, setCreatingFolder] = useState(false);
+   101→
+   102→  const [renameTarget, setRenameTarget] = useState<FileDTO | null>(null);
+   103→  const [renameValue, setRenameValue] = useState("");
+   104→  const [renaming, setRenaming] = useState(false);
+   105→
+   106→  const [playing, setPlaying] = useState<FileDTO | null>(null);
+   107→
+   108→  const [fileToDelete, setFileToDelete] = useState<FileDTO | null>(null);
+   109→  const [deletingFile, setDeletingFile] = useState(false);
+   110→
+   111→  const [folderToDelete, setFolderToDelete] = useState<FolderDTO | null>(null);
+   112→  const [deletingFolder, setDeletingFolder] = useState(false);
+   113→
+   114→  const requestIdRef = useRef(0);
+   115→
+   116→  // Debounce the search input (~300ms) before hitting the API.
+   117→  useEffect(() => {
+   118→    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+   119→    return () => clearTimeout(timer);
+   120→  }, [search]);
+   121→
+   122→  const fetchFiles = useCallback(
+   123→    async (options?: { silent?: boolean }) => {
+   124→      const requestId = ++requestIdRef.current;
+   125→      if (!options?.silent) setLoading(true);
+   126→      try {
+   127→        const params = new URLSearchParams({
+   128→          category,
+   129→          folderId,
+   130→          sort,
+   131→          search: debouncedSearch,
+   132→        });
+   133→        const res = await fetch(`/api/files?${params.toString()}`);
+   134→        const data = await asJson<{ files: FileDTO[]; folders: FolderDTO[] }>(res);
+   135→        if (requestId !== requestIdRef.current) return; // a newer request superseded this one
+   136→        setFiles(data.files);
+   137→        setFolders(data.folders);
+   138→      } catch (err) {
+   139→        if (requestId !== requestIdRef.current) return;
+   140→        toast.error((err as Error).message || "Failed to load files");
+   141→      } finally {
+   142→        if (requestId === requestIdRef.current && !options?.silent) setLoading(false);
+   143→      }
+   144→    },
+   145→    [category, folderId, sort, debouncedSearch],
+   146→  );
+   147→
+   148→  useEffect(() => {
+   149→    void fetchFiles();
+   150→  }, [fetchFiles]);
+   151→
+   152→  const refresh = useCallback(() => {
+   153→    void fetchFiles({ silent: true });
+   154→  }, [fetchFiles]);
+   155→
+   156→  const folderNameById = useMemo(() => new Map(folders.map((f) => [f.id, f.name])), [folders]);
+   157→
+   158→  const folderLabelFor = useCallback(
+   159→    (file: FileDTO): string => file.folderName ?? (file.folderId ? folderNameById.get(file.folderId) : undefined) ?? "Unsorted",
+   160→    [folderNameById],
+   161→  );
+   162→
+   163→  async function toggleFavorite(file: FileDTO) {
+   164→    try {
+   165→      await asJson<{ file: FileDTO }>(
+   166→        await fetch(`/api/files/${file.id}`, {
+   167→          method: "PATCH",
+   168→          headers: { "Content-Type": "application/json" },
+   169→          body: JSON.stringify({ favorite: !file.favorite }),
+   170→        }),
+   171→      );
+   172→      refresh();
+   173→    } catch (err) {
+   174→      toast.error((err as Error).message || "Could not update favorite");
+   175→    }
+   176→  }
+   177→
+   178→  async function handleRename() {
+   179→    if (!renameTarget) return;
+   180→    const name = renameValue.trim();
+   181→    if (!name || name === renameTarget.name) {
+   182→      setRenameTarget(null);
+   183→      return;
+   184→    }
+   185→    setRenaming(true);
+   186→    try {
+   187→      await asJson<{ file: FileDTO }>(
+   188→        await fetch(`/api/files/${renameTarget.id}`, {
+   189→          method: "PATCH",
+   190→          headers: { "Content-Type": "application/json" },
+   191→          body: JSON.stringify({ name }),
+   192→        }),
+   193→      );
+   194→      toast.success("File renamed");
+   195→      setRenameTarget(null);
+   196→      refresh();
+   197→    } catch (err) {
+   198→      toast.error((err as Error).message || "Could not rename file");
+   199→    } finally {
+   200→      setRenaming(false);
+   201→    }
+   202→  }
+   203→
+   204→  async function moveToFolder(file: FileDTO, target: string) {
+   205→    const value = target === "root" ? null : target;
+   206→    if (value === file.folderId) return;
+   207→    try {
+   208→      await asJson<{ file: FileDTO }>(
+   209→        await fetch(`/api/files/${file.id}`, {
+   210→          method: "PATCH",
+   211→          headers: { "Content-Type": "application/json" },
+   212→          body: JSON.stringify({ folderId: value }),
+   213→        }),
+   214→      );
+   215→      toast.success(value ? `Moved to "${folderNameById.get(value) ?? "folder"}"` : "Moved to Unsorted");
+   216→      refresh();
+   217→    } catch (err) {
+   218→      toast.error((err as Error).message || "Could not move file");
+   219→    }
+   220→  }
+   221→
+   222→  function copySourceLink(file: FileDTO) {
+   223→    navigator.clipboard
+   224→      .writeText(file.sourceUrl)
+   225→      .then(() => toast.success("Source link copied"))
+   226→      .catch(() => toast.error("Could not copy link"));
+   227→  }
+   228→
+   229→  async function handleDeleteFile() {
+   230→    if (!fileToDelete) return;
+   231→    setDeletingFile(true);
+   232→    try {
+   233→      await asJson<{ ok: boolean }>(await fetch(`/api/files/${fileToDelete.id}`, { method: "DELETE" }));
+   234→      toast.success("File deleted");
+   235→      setFileToDelete(null);
+   236→      refresh();
+   237→      onChanged?.();
+   238→    } catch (err) {
+   239→      toast.error((err as Error).message || "Could not delete file");
+   240→    } finally {
+   241→      setDeletingFile(false);
+   242→    }
+   243→  }
+   244→
+   245→  async function handleCreateFolder(event: React.FormEvent<HTMLFormElement>) {
+   246→    event.preventDefault();
+   247→    const name = newFolderName.trim();
+   248→    if (!name) return;
+   249→    setCreatingFolder(true);
+   250→    try {
+   251→      await asJson<{ folder: FolderDTO }>(
+   252→        await fetch("/api/folders", {
+   253→          method: "POST",
+   254→          headers: { "Content-Type": "application/json" },
+   255→          body: JSON.stringify({ name }),
+   256→        }),
+   257→      );
+   258→      toast.success(`Folder "${name}" created`);
+   259→      setNewFolderOpen(false);
+   260→      setNewFolderName("");
+   261→      refresh();
+   262→      onChanged?.();
+   263→    } catch (err) {
+   264→      toast.error((err as Error).message || "Could not create folder");
+   265→    } finally {
+   266→      setCreatingFolder(false);
+   267→    }
+   268→  }
+   269→
+   270→  async function handleDeleteFolder() {
+   271→    if (!folderToDelete) return;
+   272→    setDeletingFolder(true);
+   273→    try {
+   274→      await asJson<{ ok: boolean }>(await fetch(`/api/folders/${folderToDelete.id}`, { method: "DELETE" }));
+   275→      toast.success(`Folder "${folderToDelete.name}" deleted`);
+   276→      if (folderId === folderToDelete.id) setFolderId("all");
+   277→      setFolderToDelete(null);
+   278→      refresh();
+   279→      onChanged?.();
+   280→    } catch (err) {
+   281→      toast.error((err as Error).message || "Could not delete folder");
+   282→    } finally {
+   283→      setDeletingFolder(false);
+   284→    }
+   285→  }
+   286→
+   287→  const folderChips: { key: FolderFilter; label: string; icon: LucideIcon; count: number | null; deletable: boolean }[] = [
+   288→    { key: "all", label: "All files", icon: FolderOpen, count: null, deletable: false },
+   289→    { key: "root", label: "Unsorted", icon: Inbox, count: null, deletable: false },
+   290→    ...folders.map((f) => ({ key: f.id, label: f.name, icon: Folder, count: f.fileCount, deletable: true })),
+   291→  ];
+   292→
+   293→  const hasFilters = Boolean(debouncedSearch) || category !== "all" || folderId !== "all";
+   294→
+   295→  return (
+   296→    <div className="space-y-4">
+   297→      {/* Toolbar */}
+   298→      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+   299→        <div className="relative flex-1">
+   300→          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+   301→          <Input
+   302→            value={search}
+   303→            onChange={(e) => setSearch(e.target.value)}
+   304→            placeholder="Search files…"
+   305→            aria-label="Search files"
+   306→            className="h-11 pl-9 pr-9 sm:h-9"
+   307→          />
+   308→          {search && (
+   309→            <button
+   310→              type="button"
+   311→              onClick={() => setSearch("")}
+   312→              aria-label="Clear search"
+   313→              className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+   314→            >
+   315→              <X className="size-4" aria-hidden="true" />
+   316→            </button>
+   317→          )}
+   318→        </div>
+   319→        <div className="flex items-center gap-2">
+   320→          <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+   321→            <SelectTrigger aria-label="Sort files" className="h-11 flex-1 sm:h-9 sm:w-[150px] sm:flex-none">
+   322→              <SelectValue />
+   323→            </SelectTrigger>
+   324→            <SelectContent>
+   325→              <SelectItem value="name">Name</SelectItem>
+   326→              <SelectItem value="date">Newest</SelectItem>
+   327→              <SelectItem value="size">Largest</SelectItem>
+   328→            </SelectContent>
+   329→          </Select>
+   330→          <Button onClick={() => setNewFolderOpen(true)} className="h-11 flex-1 sm:h-9 sm:flex-none">
+   331→            <Plus className="size-4" aria-hidden="true" />
+   332→            New folder
+   333→          </Button>
+   334→        </div>
+   335→      </div>
+   336→
+   337→      {/* Category chips */}
+   338→      <div className="flex flex-wrap gap-2" role="group" aria-label="File categories">
+   339→        {CATEGORIES.map((cat) => {
+   340→          const active = category === cat.key;
+   341→          return (
+   342→            <button
+   343→              key={cat.key}
+   344→              type="button"
+   345→              onClick={() => setCategory(cat.key)}
+   346→              aria-pressed={active}
+   347→              className={cn(
+   348→                "inline-flex h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors sm:h-9",
+   349→                active
+   350→                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+   351→                  : "border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+   352→              )}
+   353→            >
+   354→              <cat.icon className="size-4" aria-hidden="true" />
+   355→              {cat.label}
+   356→            </button>
+   357→          );
+   358→        })}
+   359→      </div>
+   360→
+   361→      {/* Folder sidebar + files grid */}
+   362→      <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
+   363→        <nav aria-label="Folders" className="min-w-0 lg:w-[200px] lg:shrink-0">
+   364→          <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
+   365→            {folderChips.map((chip) => {
+   366→              const active = folderId === chip.key;
+   367→              return (
+   368→                <div key={chip.key} className="group relative shrink-0 lg:w-full">
+   369→                  <button
+   370→                    type="button"
+   371→                    onClick={() => setFolderId(chip.key)}
+   372→                    aria-pressed={active}
+   373→                    className={cn(
+   374→                      "flex h-11 items-center gap-2 rounded-full border px-3 text-sm transition-colors lg:h-9 lg:w-full lg:rounded-lg lg:px-2.5",
+   375→                      chip.deletable ? "pr-2 lg:pr-14" : "pr-3 lg:pr-2.5",
+   376→                      active
+   377→                        ? "border-emerald-500/40 bg-emerald-500/10 font-medium text-emerald-700 dark:text-emerald-400"
+   378→                        : "border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+   379→                    )}
+   380→                  >
+   381→                    <chip.icon className="size-4 shrink-0" aria-hidden="true" />
+   382→                    <span className="max-w-40 truncate lg:max-w-none">{chip.label}</span>
+   383→                    {chip.count != null && (
+   384→                      <span className="ml-1 shrink-0 rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground lg:ml-auto">
+   385→                        {chip.count}
+   386→                      </span>
+   387→                    )}
+   388→                  </button>
+   389→                  {chip.deletable && (
+   390→                    <button
+   391→                      type="button"
+   392→                      onClick={() => setFolderToDelete(folders.find((f) => f.id === chip.key) ?? null)}
+   393→                      aria-label={`Delete folder ${chip.label}`}
+   394→                      className="absolute right-0.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground opacity-40 transition-opacity hover:bg-accent/50 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 lg:right-1"
+   395→                    >
+   396→                      <Trash2 className="size-3.5" aria-hidden="true" />
+   397→                    </button>
+   398→                  )}
+   399→                </div>
+   400→              );
+   401→            })}
+   402→          </div>
+   403→        </nav>
+   404→
+   405→        <div className="min-w-0 flex-1">
+   406→          {loading ? (
+   407→            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+   408→              {Array.from({ length: 6 }).map((_, i) => (
+   409→                <Card key={i} className="rounded-xl border-border p-4">
+   410→                  <Skeleton className="aspect-video w-full rounded-md" />
+   411→                  <Skeleton className="mt-3 h-4 w-3/4" />
+   412→                  <Skeleton className="mt-2 h-3 w-1/2" />
+   413→                </Card>
+   414→              ))}
+   415→            </div>
+   416→          ) : files.length === 0 ? (
+   417→            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+   418→              <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+   419→                <FolderOpen className="size-7 text-muted-foreground" aria-hidden="true" />
+   420→              </div>
+   421→              <p className="mt-4 text-sm font-medium">
+   422→                {hasFilters ? "No files match your filters." : "No files here yet — downloads will appear in this library."}
+   423→              </p>
+   424→              {!hasFilters && (
+   425→                <p className="mt-1 max-w-60 text-xs text-muted-foreground">
+   426→                  Finished downloads are saved here automatically.
+   427→                </p>
+   428→              )}
+   429→            </div>
+   430→          ) : (
+   431→            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+   432→              {files.map((file) => (
+   433→                <FileCard
+   434→                  key={file.id}
+   435→                  file={file}
+   436→                  folders={folders}
+   437→                  folderLabel={folderLabelFor(file)}
+   438→                  onPlay={() => setPlaying(file)}
+   439→                  onRename={() => {
+   440→                    setRenameTarget(file);
+   441→                    setRenameValue(file.name);
+   442→                  }}
+   443→                  onToggleFavorite={() => void toggleFavorite(file)}
+   444→                  onMove={(target) => void moveToFolder(file, target)}
+   445→                  onCopyLink={() => copySourceLink(file)}
+   446→                  onDelete={() => setFileToDelete(file)}
+   447→                />
+   448→              ))}
+   449→            </div>
+   450→          )}
+   451→        </div>
+   452→      </div>
+   453→
+   454→      {/* New folder dialog */}
+   455→      <Dialog
+   456→        open={newFolderOpen}
+   457→        onOpenChange={(open) => {
+   458→          setNewFolderOpen(open);
+   459→          if (!open) setNewFolderName("");
+   460→        }}
+   461→      >
+   462→        <DialogContent className="sm:max-w-sm">
+   463→          <DialogHeader>
+   464→            <DialogTitle>New folder</DialogTitle>
+   465→            <DialogDescription>Create a virtual folder to organize your library.</DialogDescription>
+   466→          </DialogHeader>
+   467→          <form onSubmit={(e) => void handleCreateFolder(e)} className="space-y-4">
+   468→            <Input
+   469→              autoFocus
+   470→              value={newFolderName}
+   471→              onChange={(e) => setNewFolderName(e.target.value)}
+   472→              placeholder="Folder name"
+   473→              maxLength={60}
+   474→              aria-label="Folder name"
+   475→            />
+   476→            <DialogFooter>
+   477→              <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={() => setNewFolderOpen(false)}>
+   478→                Cancel
+   479→              </Button>
+   480→              <Button type="submit" disabled={!newFolderName.trim() || creatingFolder} className="h-11 sm:h-9">
+   481→                {creatingFolder ? "Creating…" : "Create folder"}
+   482→              </Button>
+   483→            </DialogFooter>
+   484→          </form>
+   485→        </DialogContent>
+   486→      </Dialog>
+   487→
+   488→      {/* Rename dialog */}
+   489→      <Dialog
+   490→        open={renameTarget !== null}
+   491→        onOpenChange={(open) => {
+   492→          if (!open) setRenameTarget(null);
+   493→        }}
+   494→      >
+   495→        <DialogContent className="sm:max-w-sm">
+   496→          <DialogHeader>
+   497→            <DialogTitle>Rename file</DialogTitle>
+   498→            <DialogDescription>Choose a new name for this file.</DialogDescription>
+   499→          </DialogHeader>
+   500→          <form onSubmit={(e) => void handleRename()} className="space-y-4">
+   501→            <Input
+   502→              autoFocus
+   503→              value={renameValue}
+   504→              onChange={(e) => setRenameValue(e.target.value)}
+   505→              placeholder="File name"
+   506→              maxLength={200}
+   507→              aria-label="File name"
+   508→            />
+   509→            <DialogFooter>
+   510→              <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={() => setRenameTarget(null)}>
+   511→                Cancel
+   512→              </Button>
+   513→              <Button type="submit" disabled={!renameValue.trim() || renaming} className="h-11 sm:h-9">
+   514→                {renaming ? "Saving…" : "Save"}
+   515→              </Button>
+   516→            </DialogFooter>
+   517→          </form>
+   518→        </DialogContent>
+   519→      </Dialog>
+   520→
+   521→      {/* Delete file confirmation */}
+   522→      <AlertDialog
+   523→        open={fileToDelete !== null}
+   524→        onOpenChange={(open) => {
+   525→          if (!open) setFileToDelete(null);
+   526→        }}
+   527→      >
+   528→        <AlertDialogContent>
+   529→          <AlertDialogHeader>
+   530→            <AlertDialogTitle>Delete this file?</AlertDialogTitle>
+   531→            <AlertDialogDescription>
+   532→              &ldquo;{fileToDelete?.name}&rdquo; will be permanently removed from this device. This cannot be undone.
+   533→            </AlertDialogDescription>
+   534→          </AlertDialogHeader>
+   535→          <AlertDialogFooter>
+   536→            <AlertDialogCancel disabled={deletingFile}>Cancel</AlertDialogCancel>
+   537→            <AlertDialogAction
+   538→              disabled={deletingFile}
+   539→              className="bg-destructive text-white hover:bg-destructive/90"
+   540→              onClick={(e) => {
+   541→                e.preventDefault();
+   542→                void handleDeleteFile();
+   543→              }}
+   544→            >
+   545→              {deletingFile ? "Deleting…" : "Delete file"}
+   546→            </AlertDialogAction>
+   547→          </AlertDialogFooter>
+   548→        </AlertDialogContent>
+   549→      </AlertDialog>
+   550→
+   551→      {/* Delete folder confirmation */}
+   552→      <AlertDialog
+   553→        open={folderToDelete !== null}
+   554→        onOpenChange={(open) => {
+   555→          if (!open) setFolderToDelete(null);
+   556→        }}
+   557→      >
+   558→        <AlertDialogContent>
+   559→          <AlertDialogHeader>
+   560→            <AlertDialogTitle>Delete folder &ldquo;{folderToDelete?.name}&rdquo;?</AlertDialogTitle>
+   561→            <AlertDialogDescription>
+   562→              Files inside are kept and moved to Unsorted. The folder itself will be removed.
+   563→            </AlertDialogDescription>
+   564→          </AlertDialogHeader>
+   565→          <AlertDialogFooter>
+   566→            <AlertDialogCancel disabled={deletingFolder}>Cancel</AlertDialogCancel>
+   567→            <AlertDialogAction
+   568→              disabled={deletingFolder}
+   569→              className="bg-destructive text-white hover:bg-destructive/90"
+   570→              onClick={(e) => {
+   571→                e.preventDefault();
+   572→                void handleDeleteFolder();
+   573→              }}
+   574→            >
+   575→              {deletingFolder ? "Deleting…" : "Delete folder"}
+   576→            </AlertDialogAction>
+   577→          </AlertDialogFooter>
+   578→        </AlertDialogContent>
+   579→      </AlertDialog>
+   580→
+   581→      {/* Player dialog */}
+   582→      <Dialog
+   583→        open={playing !== null}
+   584→        onOpenChange={(open) => {
+   585→          if (!open) setPlaying(null);
+   586→        }}
+   587→      >
+   588→        <DialogContent className="sm:max-w-3xl">
+   589→          {playing && (
+   590→            <>
+   591→              <DialogHeader>
+   592→                <DialogTitle className="truncate pr-6">{playing.name}</DialogTitle>
+   593→              </DialogHeader>
+   594→              {playing.kind === "video" ? (
+   595→                <video
+   596→                  key={playing.id}
+   597→                  src={playing.streamUrl}
+   598→                  controls
+   599→                  autoPlay
+   600→                  playsInline
+   601→                  className="aspect-video w-full rounded-lg bg-black"
+   602→                />
+   603→              ) : (
+   604→                <div className="space-y-3">
+   605→                  <div
+   606→                    className="flex aspect-video w-full items-center justify-center rounded-lg"
+   607→                    style={gradientStyle(playing.hue)}
+   608→                  >
+   609→                    <Music className="size-14 text-white/85" aria-hidden="true" />
+   610→                  </div>
+   611→                  <audio key={playing.id} src={playing.streamUrl} controls autoPlay className="w-full" />
+   612→                </div>
+   613→              )}
+   614→              <DialogDescription className="text-center text-xs text-muted-foreground">
+   615→                Playing your local copy — no added watermarks, ever.
+   616→              </DialogDescription>
+   617→            </>
+   618→          )}
+   619→        </DialogContent>
+   620→      </Dialog>
+   621→    </div>
+   622→  );
+   623→}
+   624→
+   625→function FileCard({
+   626→  file,
+   627→  folders,
+   628→  folderLabel,
+   629→  onPlay,
+   630→  onRename,
+   631→  onToggleFavorite,
+   632→  onMove,
+   633→  onCopyLink,
+   634→  onDelete,
+   635→}: {
+   636→  file: FileDTO;
+   637→  folders: FolderDTO[];
+   638→  folderLabel: string;
+   639→  onPlay: () => void;
+   640→  onRename: () => void;
+   641→  onToggleFavorite: () => void;
+   642→  onMove: (target: string) => void;
+   643→  onCopyLink: () => void;
+   644→  onDelete: () => void;
+   645→}) {
+   646→  return (
+   647→    <Card className="rounded-xl border-border p-4 transition-colors hover:bg-accent/50">
+   648→      <div className="relative overflow-hidden rounded-md">
+   649→        {file.kind === "video" ? (
+   650→          <img
+   651→            src={`/thumbs/thumb-${file.thumbKey}.jpg`}
+   652→            alt={file.name}
+   653→            loading="lazy"
+   654→            className="aspect-video w-full rounded-md object-cover"
+   655→          />
+   656→        ) : (
+   657→          <div className="flex aspect-video w-full items-center justify-center rounded-md" style={gradientStyle(file.hue)}>
+   658→            <Music className="size-9 text-white/85" aria-hidden="true" />
+   659→          </div>
+   660→        )}
+   661→        <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white">
+   662→          {formatDuration(file.durationSec)}
+   663→        </span>
+   664→        <Button
+   665→          variant="ghost"
+   666→          size="icon"
+   667→          onClick={onToggleFavorite}
+   668→          aria-label={file.favorite ? "Remove from favorites" : "Add to favorites"}
+   669→          aria-pressed={file.favorite}
+   670→          className="absolute right-1.5 top-1.5 size-11 rounded-full bg-black/50 text-white hover:bg-black/70 hover:text-white sm:size-9"
+   671→        >
+   672→          <Star className={cn("size-4", file.favorite && "fill-amber-400 text-amber-400")} aria-hidden="true" />
+   673→        </Button>
+   674→      </div>
+   675→
+   676→      <div className="mt-3 flex items-start justify-between gap-2">
+   677→        <div className="min-w-0 flex-1">
+   678→          <p className="truncate text-sm font-medium" title={file.name}>
+   679→            {file.name}
+   680→          </p>
+   681→          <p className="mt-1 truncate text-xs text-muted-foreground" title={`${formatBytes(file.sizeBytes)} · ${file.quality} · ${folderLabel}`}>
+   682→            {formatBytes(file.sizeBytes)} · {file.quality} · {folderLabel} · {timeAgo(file.createdAt)}
+   683→          </p>
+   684→        </div>
+   685→        <DropdownMenu>
+   686→          <DropdownMenuTrigger asChild>
+   687→            <Button
+   688→              variant="ghost"
+   689→              size="icon"
+   690→              aria-label="File actions"
+   691→              className="size-11 shrink-0 text-muted-foreground sm:size-9"
+   692→            >
+   693→              <MoreVertical className="size-4" aria-hidden="true" />
+   694→            </Button>
+   695→          </DropdownMenuTrigger>
+   696→          <DropdownMenuContent align="end" className="w-52">
+   697→            <DropdownMenuItem onSelect={onPlay}>
+   698→              <Play aria-hidden="true" />
+   699→              Play
+   700→            </DropdownMenuItem>
+   701→            <DropdownMenuSeparator />
+   702→            <DropdownMenuItem onSelect={onRename}>
+   703→              <Pencil aria-hidden="true" />
+   704→              Rename
+   705→            </DropdownMenuItem>
+   706→            <DropdownMenuSub>
+   707→              <DropdownMenuSubTrigger>
+   708→                <Folder aria-hidden="true" />
+   709→                Move to folder
+   710→              </DropdownMenuSubTrigger>
+   711→              <DropdownMenuSubContent className="max-h-64 overflow-y-auto">
+   712→                <DropdownMenuRadioGroup value={file.folderId ?? "root"} onValueChange={onMove}>
+   713→                  <DropdownMenuRadioItem value="root">Unsorted</DropdownMenuRadioItem>
+   714→                  {folders.map((folder) => (
+   715→                    <DropdownMenuRadioItem key={folder.id} value={folder.id}>
+   716→                      {folder.name}
+   717→                    </DropdownMenuRadioItem>
+   718→                  ))}
+   719→                </DropdownMenuRadioGroup>
+   720→              </DropdownMenuSubContent>
+   721→            </DropdownMenuSub>
+   722→            <DropdownMenuSeparator />
+   723→            <DropdownMenuItem onSelect={onCopyLink}>
+   724→              <Link2 aria-hidden="true" />
+   725→              Copy source link
+   726→            </DropdownMenuItem>
+   727→            <DropdownMenuItem asChild>
+   728→              <a href={`${file.streamUrl}?dl=1`} download={file.name}>
+   729→                <Download aria-hidden="true" />
+   730→                Save to device
+   731→              </a>
+   732→            </DropdownMenuItem>
+   733→            <DropdownMenuSeparator />
+   734→            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+   735→              <Trash2 aria-hidden="true" />
+   736→              Delete
+   737→            </DropdownMenuItem>
+   738→          </DropdownMenuContent>
+   739→        </DropdownMenu>
+   740→      </div>
+   741→    </Card>
+   742→  );
+   743→}
+   744→

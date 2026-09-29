@@ -11,8 +11,6 @@ import {
   Loader2,
   Search,
   ShieldCheck,
-  Sparkles,
-  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -304,12 +302,6 @@ export function HeroAnalyzer({
       {analyzed && !analyzing && (
         <PreviewCard analyzed={analyzed} onQueued={onQueued} onDismiss={() => setAnalyzed(null)} />
       )}
-
-      <p className="mx-auto mt-6 flex max-w-2xl items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-        <Sparkles className="size-3.5 text-amber-500" aria-hidden />
-        <Wand2 className="size-3.5 text-amber-500" aria-hidden />
-        Prototype note: link analysis &amp; transfer are simulated in this demo sandbox — completed files play for real.
-      </p>
     </section>
   );
 }

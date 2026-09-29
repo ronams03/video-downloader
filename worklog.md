@@ -137,3 +137,24 @@ Work Log:
 
 Stage Summary:
 - App complete and verified. Engine is a deterministic simulation; completed files are real playable media. Premium reset to free default afterwards; user files untouched.
+
+---
+Task ID: fix-1
+Agent: Z.ai Code (main)
+Task: Fix hydration mismatch, remove floating Next.js logo, add footer Developer section with blackhat icon + social links, fix "Save to device" not delivering files, remove prototype note.
+
+Work Log:
+- Fixed ThemeToggle hydration mismatch in src/components/downloader/app-header.tsx: replaced theme-dependent SSR aria-label with a hydration-safe `useMounted` flag built on `useSyncExternalStore` (server/hydration snapshot=false, client=true), so server HTML always matches first client render.
+- Removed floating Next.js dev-tools logo via `devIndicators: false` in next.config.ts (server auto-restarted and applied it).
+- Rewrote src/components/downloader/app-footer.tsx as client component: added custom "black hat" SVG icon (lucide has none), a "Developer" outline button that opens a Popover showing ROBERTH NAMOC (RN avatar) with Facebook -> https://facebook.com/ronams03 and GitHub -> https://github.com/ronams03 links (target=_blank, rel=noopener).
+- Fixed "can't get the file when click download" in src/components/downloader/files-panel.tsx: root cause was `<a download>` inside Radix DropdownMenuItem asChild (click swallowed when menu closes) + sandboxed iframe blocking anchor downloads. Added `downloadFileToDisk()` helper that fetches the stream (?dl=1), creates a blob object URL and programmatically clicks an anchor, with window.open fallback + toast feedback. Added a visible per-card Download icon button, wired dropdown "Save to device" to the same handler, and added a "Save to device" button in the player dialog.
+- Removed the "Prototype note: link analysis & transfer are simulated..." paragraph and unused Sparkles/Wand2 imports from hero-analyzer.tsx.
+- Data fix: renamed MediaFile "Skyline Walk undefined.mp4" -> "Skyline Walk 144p.mp4" in SQLite (stale seed artifact).
+- Verification (agent-browser): page loads with zero console/hydration errors; no floating Next.js logo; Developer popover shows name + working social hrefs; Save buttons (card icon, dropdown item) both trigger stream?dl=1 fetch 200 + "Saved to your device" toast; theme toggle cycles both directions error-free; mobile 390px layout correct with sticky footer.
+
+Stage Summary:
+- Hydration error eliminated (lint-clean useSyncExternalStore pattern).
+- Floating Next.js dev indicator disabled.
+- Footer now features Developer credit with black-hat icon and Facebook/GitHub links to ronams03.
+- "Save to device" reliably delivers real files (verified end-to-end via network log + toast).
+- Prototype/disclaimer note removed from the hero section.

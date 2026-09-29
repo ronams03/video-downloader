@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { Crown, Download, HardDrive, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Badge } from "@/components/ui/badge";
@@ -7,14 +8,30 @@ import { Button } from "@/components/ui/button";
 import { formatBytes } from "@/lib/format";
 import type { StorageInfo } from "@/lib/types";
 
+const emptySubscribe = () => () => {};
+
+/** Hydration-safe `mounted` flag: false during SSR + hydration, true after. */
+function useMounted(): boolean {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+}
+
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
+  // `resolvedTheme` is only known on the client. Render a stable, theme-independent
+  // output until after hydration so the server HTML always matches the first
+  // client render (prevents the aria-label hydration mismatch).
+  const mounted = useMounted();
+  const isDark = mounted && resolvedTheme === "dark";
   return (
     <Button
       variant="ghost"
       size="icon"
-      aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      onClick={() => setTheme(isDark ? "light" : "dark")}
     >
       <Sun className="hidden size-4 dark:block" aria-hidden />
       <Moon className="size-4 dark:hidden" aria-hidden />

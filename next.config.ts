@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  // Hide the floating Next.js dev-tools logo/indicator.
+  devIndicators: false,
 };
 
 export default nextConfig;
