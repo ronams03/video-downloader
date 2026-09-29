@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A download job in the queue / manager.
+// Progress is computed lazily from elapsed active time (time-based simulation engine).
+model DownloadJob {
+  id            String    @id @default(cuid())
+  url           String
+  title         String
+  author        String    @default("")
+  platform      String
+  kind          String // "video" | "audio"
+  quality       String // "1080p" | "720p" | ... | "320 kbps"
+  format        String // "mp4" | "mp3"
+  totalBytes    Int
+  speedBps      Int // simulated constant download speed (bytes/sec)
+  failAtBytes   Int? // deterministic mid-download failure point (null = will succeed)
+  status        String // queued | downloading | paused | completed | failed | canceled
+  errorMessage  String?
+  startedAt     DateTime? // last resume time (null while queued/paused/finished)
+  accumulatedMs Int       @default(0) // active downloading time accumulated so far
+  completedAt   DateTime?
+  fileId        String?
+  thumbKey      String    @default("1") // maps to /thumbs/thumb-N.jpg
+  createdAt     DateTime  @default(now())
+}
+
+// A completed download, available in the built-in file manager.
+model MediaFile {
+  id          String   @id @default(cuid())
+  jobId       String?
+  name        String
+  kind        String // video | audio
+  quality     String
+  format      String
+  sizeBytes   Int
+  durationSec Int
+  sourceUrl   String   @default("")
+  filePath    String // key into media/samples/: sample-video-1 | sample-video-2 | sample-audio-1
+  thumbKey    String   @default("1")
+  hue         Int      @default(150)
+  favorite    Boolean  @default(false)
+  folderId    String?
+  folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
+
+// User-created folder in the file manager.
+model Folder {
+  id        String      @id @default(cuid())
+  name      String
+  createdAt DateTime    @default(now())
+  files     MediaFile[]
+}
+
+// Simple key-value app settings (single row per key).
+model Setting {
+  key   String @id
+  value String
+}
