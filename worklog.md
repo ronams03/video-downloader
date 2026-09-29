@@ -200,3 +200,17 @@ Stage Summary:
 - App now deploys to Vercel with ZERO configuration: ephemeral in-memory mode auto-activates (data lives per warm instance, resets on restart; UI notice explains it).
 - Local/sandbox behavior unchanged (Prisma/SQLite, ephemeral:false).
 - Footer developer card now uses the anime IT-guy avatar.
+---
+Task ID: fix-4
+Agent: Z.ai Code (main)
+Task: Replace the app icon logo and favicon with a custom PureDownload brand mark.
+
+Work Log:
+- Designed a custom SVG brand mark (emerald-500 -> teal-600 gradient rounded tile, white download arrow into a tray, 4-point "clean as the original" sparkle accent).
+- Added src/app/icon.svg (Next.js App Router favicon file convention) + rasterized src/app/icon.png (32px, legacy favicon) and src/app/apple-icon.png (180px, iOS) via sharp.
+- Removed the external z-cdn Z.ai logo from metadata.icons in src/app/layout.tsx.
+- Added a BrandMark SVG component in src/components/downloader/app-header.tsx replacing the generic lucide Download-in-box logo (unused Download import removed).
+- Verified: lint clean; /icon.svg, /icon.png, /apple-icon.png all 200 with correct content types; HTML emits rel=icon/icon.png/icon.svg + apple-touch-icon links; header mark renders in light + dark mode; zero console errors.
+
+Stage Summary:
+- PureDownload now has its own favicon + header logo; no external CDN logo references remain.

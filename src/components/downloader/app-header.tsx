@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { Crown, Download, HardDrive, Moon, Sun } from "lucide-react";
+import { Crown, HardDrive, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,25 @@ import { formatBytes } from "@/lib/format";
 import type { StorageInfo } from "@/lib/types";
 
 const emptySubscribe = () => () => {};
+
+/** Custom PureDownload brand mark — matches /icon.svg (favicon). */
+function BrandMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true" className={className}>
+      <defs>
+        <linearGradient id="pd-bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#10b981" />
+          <stop offset="1" stopColor="#0d9488" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#pd-bg)" />
+      <path d="M30 13v20" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" />
+      <path d="M20 26l10 10 10-10" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17 50h26" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" />
+      <path d="M49 8l1.8 5.2L56 15l-5.2 1.8L49 22l-1.8-5.2L42 15l5.2-1.8Z" fill="#fff" opacity="0.92" />
+    </svg>
+  );
+}
 
 /** Hydration-safe `mounted` flag: false during SSR + hydration, true after. */
 function useMounted(): boolean {
@@ -50,9 +69,7 @@ export function AppHeader({
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-3 px-4">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 shadow-sm">
-            <Download className="size-4 text-white" aria-hidden />
-          </div>
+          <BrandMark className="size-8 shrink-0 drop-shadow-sm" />
           <span className="truncate font-semibold tracking-tight">PureDownload</span>
           <Badge
             variant="outline"

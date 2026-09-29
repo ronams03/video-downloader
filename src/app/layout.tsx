@@ -19,9 +19,6 @@ export const metadata: Metadata = {
   description:
     "Fast, privacy-focused video downloader. Paste a link, pick a quality, and save videos or MP3s locally. We never add a watermark to your downloaded files.",
   keywords: ["video downloader", "no watermark", "mp3", "download manager", "offline"],
-  icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
-  },
 };
 
 export default function RootLayout({
