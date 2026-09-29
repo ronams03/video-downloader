@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Facebook, Github, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -57,11 +58,18 @@ export function AppFooter() {
             </PopoverTrigger>
             <PopoverContent align="end" side="top" className="w-64 p-4">
               <div className="flex items-center gap-3">
-                <div
-                  aria-hidden="true"
-                  className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white"
-                >
-                  RN
+                <div className="relative shrink-0">
+                  <Image
+                    src="/dev-avatar.png"
+                    alt="Anime-style avatar of developer ROBERTH NAMOC"
+                    width={44}
+                    height={44}
+                    className="size-11 rounded-full object-cover ring-2 ring-emerald-500/50"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-background bg-emerald-500"
+                  />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">ROBERTH NAMOC</p>

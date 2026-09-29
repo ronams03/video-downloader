@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, isEphemeralDb } from "@/lib/db";
 import { syncJobs, toFileDTO } from "@/lib/engine";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
       createdAt: f.createdAt.toISOString(),
       fileCount: countMap.get(f.id) ?? 0,
     })),
+    ephemeral: isEphemeralDb(),
   });
 }
 

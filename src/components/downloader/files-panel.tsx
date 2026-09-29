@@ -16,6 +16,7 @@ import {
   Play,
   Plus,
   Search,
+  Server,
   Star,
   Trash2,
   Film,
@@ -89,6 +90,7 @@ function gradientStyle(hue: number): React.CSSProperties {
 export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
   const [files, setFiles] = useState<FileDTO[]>([]);
   const [folders, setFolders] = useState<FolderDTO[]>([]);
+  const [ephemeral, setEphemeral] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -152,10 +154,11 @@ export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
           search: debouncedSearch,
         });
         const res = await fetch(`/api/files?${params.toString()}`);
-        const data = await asJson<{ files: FileDTO[]; folders: FolderDTO[] }>(res);
+        const data = await asJson<{ files: FileDTO[]; folders: FolderDTO[]; ephemeral?: boolean }>(res);
         if (requestId !== requestIdRef.current) return; // a newer request superseded this one
         setFiles(data.files);
         setFolders(data.folders);
+        setEphemeral(Boolean(data.ephemeral));
       } catch (err) {
         if (requestId !== requestIdRef.current) return;
         toast.error((err as Error).message || "Failed to load files");
@@ -315,6 +318,18 @@ export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
 
   return (
     <div className="space-y-4">
+      {/* Ephemeral-mode notice (shown on serverless deploys like Vercel). */}
+      {ephemeral && (
+        <p className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-700 dark:text-amber-400">
+          <Server className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            <span className="font-medium">Ephemeral demo mode:</span> files are stored on the
+            serverless instance and reset when it restarts. Run with a database for persistent
+            storage.
+          </span>
+        </p>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1">
