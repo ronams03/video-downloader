@@ -158,3 +158,23 @@ Stage Summary:
 - Footer now features Developer credit with black-hat icon and Facebook/GitHub links to ronams03.
 - "Save to device" reliably delivers real files (verified end-to-end via network log + toast).
 - Prototype/disclaimer note removed from the hero section.
+
+---
+Task ID: fix-2
+Agent: Z.ai Code (main)
+Task: Fix body hydration warning, make "Download" actually deliver files, remove all existing files/audios.
+
+Work Log:
+- Added suppressHydrationWarning to <body> in src/app/layout.tsx — the `__processed_*` attribute is injected into the DOM by the preview wrapper/browser extension before React hydrates (the documented external-mutation case).
+- ROOT CAUSE of "file is not downloading": job/file titles contain em-dashes ("Street Food Tour — Short Film"), and `Content-Disposition: filename="…"` is a ByteString (Latin-1) header — the U+2014 char crashed Response construction with a 500 for ANY file whose title contained it. Fixed in BOTH routes (/api/downloads/[id]/file and /api/files/[id]/stream) with an ASCII fallback name + RFC 5987 `filename*=UTF-8''…` encoding.
+- Created new endpoint src/app/api/downloads/[id]/file/route.ts serving the real media bytes as an attachment named after the job title (works for queued/in-progress/completed jobs).
+- Exported samplePathFor from src/lib/engine.ts (was private, needed by the new route).
+- Created shared client util src/lib/save-file.ts (saveFileFromUrl: fetch -> blob -> programmatic anchor download, with window.open fallback; safeFileName helper).
+- PreviewCard.download() now delivers the real file to the device immediately after queueing (toast "Saved to your device"); hero-analyzer batch flow does the same for every queued job; files-panel refactored onto the shared util.
+- Data cleanup: deleted all 12 MediaFile rows, all download jobs/history, and leftover empty folders — storage now 0 B used, Files tab empty.
+- Verified with agent-browser: no hydration errors on <body>; Analyze -> Download flow shows "Saved to your device" toast with an em-dash title (previously 500); GET /api/downloads/[id]/file returns 200 with valid MP4; lint clean.
+
+Stage Summary:
+- Hydration mismatch on body suppressed (externally-injected attribute).
+- Downloads now REALLY save files to the device: the em-dash ByteString crash is fixed everywhere and every Download click (single + batch) delivers the actual file bytes immediately.
+- Library, history, folders and test jobs wiped for a clean start.

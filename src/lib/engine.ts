@@ -282,7 +282,7 @@ function sanitizeName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
 }
 
-function samplePathFor(kind: string, seed: string): string {
+export function samplePathFor(kind: string, seed: string): string {
   if (kind === "audio") return "sample-audio-1";
   return fnv1a(seed) % 2 === 0 ? "sample-video-1" : "sample-video-2";
 }

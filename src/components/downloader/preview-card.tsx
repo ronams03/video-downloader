@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatBytes, formatDuration } from "@/lib/format";
-import type { AnalyzedVideo, MediaKind } from "@/lib/types";
+import { saveFileFromUrl, safeFileName } from "@/lib/save-file";
+import type { AnalyzedVideo, DownloadJobDTO, MediaKind } from "@/lib/types";
 
 export function PreviewCard({
   analyzed,
@@ -50,10 +51,27 @@ export function PreviewCard({
         toast.error(data.message ?? "Could not start this download.");
         return;
       }
+      const jobs = (Array.isArray(data.jobs) ? data.jobs : []) as DownloadJobDTO[];
       toast.success("Added to queue", {
         description: `${analyzed.title} · ${selectedFormat.label} · ${formatBytes(selectedFormat.sizeBytes)}`,
       });
       onQueued();
+
+      // Deliver the real file to the device immediately — the queue keeps
+      // animating, but the actual bytes are saved right now.
+      for (const job of jobs) {
+        const filename = safeFileName(`${job.title}.${job.format}`);
+        const outcome = await saveFileFromUrl(`/api/downloads/${job.id}/file`, filename);
+        if (outcome === "saved") {
+          toast.success("Saved to your device", {
+            description: `${filename} — check your browser's downloads.`,
+          });
+        } else {
+          toast.info("Opened the file in a new tab", {
+            description: "If the download didn't start, allow downloads/pop-ups for this site.",
+          });
+        }
+      }
     } catch {
       toast.error("Network error — please try again.");
     } finally {

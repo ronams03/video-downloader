@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { saveFileFromUrl, safeFileName } from "@/lib/save-file";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { PreviewCard } from "@/components/downloader/preview-card";
-import type { AnalyzedVideo, MediaKind } from "@/lib/types";
+import type { AnalyzedVideo, DownloadJobDTO, MediaKind } from "@/lib/types";
 
 const URL_RE = /^https?:\/\/\S+$/i;
 
@@ -124,6 +125,18 @@ export function HeroAnalyzer({
       });
       setBatchText("");
       onQueued();
+
+      // Deliver the real files to the device right away, one by one.
+      const jobs = (Array.isArray(data.jobs) ? data.jobs : []) as DownloadJobDTO[];
+      for (const job of jobs) {
+        const filename = safeFileName(`${job.title}.${job.format}`);
+        const outcome = await saveFileFromUrl(`/api/downloads/${job.id}/file`, filename);
+        if (outcome === "saved") {
+          toast.success("Saved to your device", {
+            description: `${filename} — check your browser's downloads.`,
+          });
+        }
+      }
     } catch {
       toast.error("Network error — please try again.");
     } finally {

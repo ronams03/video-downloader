@@ -44,8 +44,15 @@ export async function GET(
   }
 
   const mime = MIME_BY_FORMAT[file.format] ?? "application/octet-stream";
-  const safeName = file.name.replace(/"/g, "") || `download.${file.format}`;
+  const rawName = file.name.replace(/"/g, "") || `download.${file.format}`;
   const disposition = req.nextUrl.searchParams.get("dl") === "1" ? "attachment" : "inline";
+
+  // HTTP headers are ByteStrings (Latin-1). File names may contain characters
+  // like "—" (U+2014) which crash Response construction, so send an ASCII
+  // fallback plus the RFC 5987 UTF-8 encoded form.
+  const asciiName = rawName.replace(/[^\x20-\x7E]/g, "_");
+  const utf8Name = encodeURIComponent(rawName);
+  const dispositionHeader = `${disposition}; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`;
 
   // Minimal Range support so <video> seeking works in Chromium.
   const range = req.headers.get("range");
@@ -63,7 +70,7 @@ export async function GET(
             "Content-Length": String(slice.length),
             "Content-Range": `bytes ${start}-${end}/${buffer.length}`,
             "Accept-Ranges": "bytes",
-            "Content-Disposition": `${disposition}; filename="${safeName}"`,
+            "Content-Disposition": dispositionHeader,
           },
         });
       }
@@ -76,7 +83,7 @@ export async function GET(
       "Content-Type": mime,
       "Content-Length": String(buffer.length),
       "Accept-Ranges": "bytes",
-      "Content-Disposition": `${disposition}; filename="${safeName}"`,
+      "Content-Disposition": dispositionHeader,
       "Cache-Control": "no-store",
     },
   });

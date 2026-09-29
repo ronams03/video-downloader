@@ -59,6 +59,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatBytes, formatDuration, timeAgo } from "@/lib/format";
+import { saveFileFromUrl } from "@/lib/save-file";
 import type { FileDTO, FolderDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -83,39 +84,6 @@ function gradientStyle(hue: number): React.CSSProperties {
   return {
     background: `linear-gradient(135deg, hsl(${hue} 70% 45%), hsl(${(hue + 40) % 360} 70% 30%))`,
   };
-}
-
-/**
- * Save a library file to the user's device.
- *
- * We fetch the bytes and trigger a programmatic blob download instead of relying
- * on a plain <a download> link — anchor clicks inside dropdown menus (and inside
- * sandboxed preview iframes) are frequently swallowed, which made "Save to
- * device" silently do nothing. A new-tab fallback covers the strictest sandboxes.
- */
-async function downloadFileToDisk(file: FileDTO): Promise<void> {
-  try {
-    const res = await fetch(`${file.streamUrl}?dl=1`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name || `download.${file.format}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    toast.success("Saved to your device", {
-      description: `${file.name} — check your browser's downloads.`,
-    });
-  } catch {
-    // Fallback: let the browser handle the attachment response directly.
-    window.open(`${file.streamUrl}?dl=1`, "_blank", "noopener,noreferrer");
-    toast.info("Opened the file in a new tab", {
-      description: "If the download didn't start, allow downloads/pop-ups for this site.",
-    });
-  }
 }
 
 export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
@@ -143,7 +111,16 @@ export function FilesPanel({ onChanged }: { onChanged?: () => void }) {
   const handleSave = useCallback(async (file: FileDTO) => {
     setSavingId(file.id);
     try {
-      await downloadFileToDisk(file);
+      const outcome = await saveFileFromUrl(`${file.streamUrl}?dl=1`, file.name);
+      if (outcome === "saved") {
+        toast.success("Saved to your device", {
+          description: `${file.name} — check your browser's downloads.`,
+        });
+      } else {
+        toast.info("Opened the file in a new tab", {
+          description: "If the download didn't start, allow downloads/pop-ups for this site.",
+        });
+      }
     } finally {
       setSavingId((current) => (current === file.id ? null : current));
     }
